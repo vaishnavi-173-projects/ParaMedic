@@ -1,0 +1,186 @@
+{
+  "metadata": {
+    "dataset_type": "openstreetmap_derived",
+    "source": "OpenStreetMap via OSMnx",
+    "exported_utc": "2026-10-16T12:11:58.578014+00:00",
+    "center": {
+      "latitude": 12.956,
+      "longitude": 77.708
+    },
+    "radius_m": 4000,
+    "units": {
+      "distance": "metres",
+      "time": "seconds",
+      "speed": "km/h"
+    },
+    "node_count": 7343,
+    "directed_edge_count": 16614,
+    "speed_assumptions_kmh": {
+      "motorway": 55,
+      "trunk": 45,
+      "primary": 35,
+      "secondary": 30,
+      "tertiary": 25,
+      "unclassified": 20,
+      "residential": 20,
+      "living_street": 10,
+      "service": 15,
+      "road": 20
+    },
+    "weight_formula": "travel_time_s = length_m / (speed_kmh * 1000 / 3600)",
+    "limitations": "Estimated speeds; no live traffic, road closures, siren priority, or real emergency-service integration."
+  },
+  "target_node": 3672,
+  "benchmarks": [
+    {
+      "fleet_size": 5,
+      "sequential_avg_ms": 1.01,
+      "parallel_results": [
+        {
+          "threads": 1,
+          "avg_ms": 1.184,
+          "speedup": 0.85,
+          "efficiency": 0.854
+        },
+        {
+          "threads": 2,
+          "avg_ms": 0.939,
+          "speedup": 1.08,
+          "efficiency": 0.538
+        },
+        {
+          "threads": 4,
+          "avg_ms": 0.821,
+          "speedup": 1.23,
+          "efficiency": 0.308
+        },
+        {
+          "threads": 8,
+          "avg_ms": 1.013,
+          "speedup": 1.0,
+          "efficiency": 0.125
+        }
+      ]
+    },
+    {
+      "fleet_size": 10,
+      "sequential_avg_ms": 2.035,
+      "parallel_results": [
+        {
+          "threads": 1,
+          "avg_ms": 1.712,
+          "speedup": 1.19,
+          "efficiency": 1.189
+        },
+        {
+          "threads": 2,
+          "avg_ms": 1.157,
+          "speedup": 1.76,
+          "efficiency": 0.879
+        },
+        {
+          "threads": 4,
+          "avg_ms": 1.076,
+          "speedup": 1.89,
+          "efficiency": 0.473
+        },
+        {
+          "threads": 8,
+          "avg_ms": 1.153,
+          "speedup": 1.77,
+          "efficiency": 0.221
+        }
+      ]
+    },
+    {
+      "fleet_size": 25,
+      "sequential_avg_ms": 3.925,
+      "parallel_results": [
+        {
+          "threads": 1,
+          "avg_ms": 4.152,
+          "speedup": 0.95,
+          "efficiency": 0.945
+        },
+        {
+          "threads": 2,
+          "avg_ms": 2.764,
+          "speedup": 1.42,
+          "efficiency": 0.71
+        },
+        {
+          "threads": 4,
+          "avg_ms": 2.068,
+          "speedup": 1.9,
+          "efficiency": 0.474
+        },
+        {
+          "threads": 8,
+          "avg_ms": 1.774,
+          "speedup": 2.21,
+          "efficiency": 0.277
+        }
+      ]
+    },
+    {
+      "fleet_size": 50,
+      "sequential_avg_ms": 9.163,
+      "parallel_results": [
+        {
+          "threads": 1,
+          "avg_ms": 9.091,
+          "speedup": 1.01,
+          "efficiency": 1.008
+        },
+        {
+          "threads": 2,
+          "avg_ms": 5.786,
+          "speedup": 1.58,
+          "efficiency": 0.792
+        },
+        {
+          "threads": 4,
+          "avg_ms": 3.308,
+          "speedup": 2.77,
+          "efficiency": 0.692
+        },
+        {
+          "threads": 8,
+          "avg_ms": 3.368,
+          "speedup": 2.72,
+          "efficiency": 0.34
+        }
+      ]
+    },
+    {
+      "fleet_size": 100,
+      "sequential_avg_ms": 17.26,
+      "parallel_results": [
+        {
+          "threads": 1,
+          "avg_ms": 19.192,
+          "speedup": 0.9,
+          "efficiency": 0.899
+        },
+        {
+          "threads": 2,
+          "avg_ms": 9.436,
+          "speedup": 1.83,
+          "efficiency": 0.915
+        },
+        {
+          "threads": 4,
+          "avg_ms": 6.518,
+          "speedup": 2.65,
+          "efficiency": 0.662
+        },
+        {
+          "threads": 8,
+          "avg_ms": 4.838,
+          "speedup": 3.57,
+          "efficiency": 0.446
+        }
+      ]
+    }
+  ]
+}

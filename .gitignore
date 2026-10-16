@@ -1,0 +1,8 @@
+node_modules/
+client/dist/
+engine/build/
+.venv/
+__pycache__/
+*.pyc
+*.zip
+*.log

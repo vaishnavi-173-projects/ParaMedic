@@ -1,0 +1,31 @@
+{
+  "dataset_type": "openstreetmap_derived",
+  "source": "OpenStreetMap via OSMnx",
+  "exported_utc": "2026-10-16T12:11:58.578014+00:00",
+  "center": {
+    "latitude": 12.956,
+    "longitude": 77.708
+  },
+  "radius_m": 4000,
+  "units": {
+    "distance": "metres",
+    "time": "seconds",
+    "speed": "km/h"
+  },
+  "node_count": 7343,
+  "directed_edge_count": 16614,
+  "speed_assumptions_kmh": {
+    "motorway": 55,
+    "trunk": 45,
+    "primary": 35,
+    "secondary": 30,
+    "tertiary": 25,
+    "unclassified": 20,
+    "residential": 20,
+    "living_street": 10,
+    "service": 15,
+    "road": 20
+  },
+  "weight_formula": "travel_time_s = length_m / (speed_kmh * 1000 / 3600)",
+  "limitations": "Estimated speeds; no live traffic, road closures, siren priority, or real emergency-service integration."
+}
