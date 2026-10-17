@@ -1,0 +1,7 @@
+[
+  { "label": "5 ambulances", "candidates": 5, "threads": 8, "sequentialMs": 1.01, "parallelMs": 1.013 },
+  { "label": "10 ambulances", "candidates": 10, "threads": 8, "sequentialMs": 2.035, "parallelMs": 1.153 },
+  { "label": "25 ambulances", "candidates": 25, "threads": 8, "sequentialMs": 3.925, "parallelMs": 1.774 },
+  { "label": "50 ambulances", "candidates": 50, "threads": 8, "sequentialMs": 9.163, "parallelMs": 3.368 },
+  { "label": "100 ambulances", "candidates": 100, "threads": 8, "sequentialMs": 17.26, "parallelMs": 4.838 }
+]

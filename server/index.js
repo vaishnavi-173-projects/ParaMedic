@@ -212,8 +212,18 @@ app.get('/api/graph', (_req, res) => {
 // GET /api/ambulances
 app.get('/api/ambulances', (_req, res) => {
   try {
+    const nodesById = new Map(graph().nodes.map(n => [n.id, n]));
+    const fleetWithCoords = getFleet().map(a => {
+      const n = nodesById.get(a.nodeId);
+      return {
+        ...a,
+        lat: n ? n.lat : null,
+        lon: n ? n.lon : null,
+        lng: n ? n.lon : null
+      };
+    });
     res.json({
-      ambulances: getFleet(),
+      ambulances: fleetWithCoords,
       note: 'Simulated fleet positions. Not connected to real emergency dispatch.'
     });
   } catch (e) {
@@ -224,8 +234,10 @@ app.get('/api/ambulances', (_req, res) => {
 // POST /api/snap
 app.post('/api/snap', (req, res) => {
   try {
-    const lat = Number(req.body?.lat);
-    const lon = Number(req.body?.lon);
+    const rawLat = req.body?.lat ?? req.body?.incident?.lat;
+    const rawLon = req.body?.lon ?? req.body?.lng ?? req.body?.incident?.lon ?? req.body?.incident?.lng;
+    const lat = Number(rawLat);
+    const lon = Number(rawLon);
     if (!Number.isFinite(lat) || !Number.isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Invalid coordinates: lat and lon must be valid finite numbers.' });
     }
@@ -247,9 +259,12 @@ app.post('/api/dispatch', async (req, res) => {
     }
 
     let targetNode;
-    if (req.body?.lat != null && req.body?.lon != null) {
-      const lat = Number(req.body.lat);
-      const lon = Number(req.body.lon);
+    const reqLat = req.body?.lat ?? req.body?.incident?.lat;
+    const reqLon = req.body?.lon ?? req.body?.lng ?? req.body?.incident?.lon ?? req.body?.incident?.lng;
+
+    if (reqLat != null && reqLon != null) {
+      const lat = Number(reqLat);
+      const lon = Number(reqLon);
       if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
         return res.status(400).json({ error: 'lat and lon must be valid finite numbers.' });
       }
@@ -276,12 +291,30 @@ app.post('/api/dispatch', async (req, res) => {
     }
 
     const mode = req.body?.mode === 'sequential' ? 'sequential' : 'parallel';
-    const available = getFleet().filter(a => a.available);
-    if (available.length === 0) {
+    
+    let candidateAmbulances;
+    if (Array.isArray(req.body?.ambulances) && req.body.ambulances.length > 0) {
+      candidateAmbulances = req.body.ambulances.map(a => {
+        let nodeId = a.nodeId;
+        if (!nodeId && a.lat != null && (a.lng != null || a.lon != null)) {
+          const snapped = snapToNode(Number(a.lat), Number(a.lng ?? a.lon));
+          nodeId = snapped?.nodeId;
+        }
+        return {
+          id: String(a.id),
+          nodeId: Number(nodeId),
+          available: a.available !== false
+        };
+      }).filter(a => a.nodeId && isValidNode(a.nodeId));
+    } else {
+      candidateAmbulances = getFleet().filter(a => a.available);
+    }
+
+    if (candidateAmbulances.length === 0) {
       return res.status(400).json({ error: 'No ambulances are currently available for dispatch.' });
     }
 
-    const result = await runEngine(targetNode, available, mode, threads);
+    const result = await runEngine(targetNode, candidateAmbulances, mode, threads);
     attachCoordinates(result);
     const nodesById = new Map(graph().nodes.map(n => [n.id, n]));
     result.target = nodesById.get(targetNode) ?? null;
