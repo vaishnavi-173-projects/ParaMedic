@@ -7,7 +7,7 @@
   --lime: #c6f432;
   --red: #ff4d3d;
   --amber: #ffb020;
-  --blur: clamp(2px, 0.37vh, 5px); /* ≈4px at 1080p */
+  --blur: 1px;
   --display: 'Archivo', 'Arial Narrow', system-ui, sans-serif;
   --body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   
@@ -17,7 +17,7 @@
   -webkit-font-smoothing: antialiased;
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 .landing-root * { box-sizing: border-box; }
 .landing-root h1, .landing-root h2, .landing-root h3 { font-family: var(--display); font-stretch: 85%; line-height: 1.02; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
@@ -56,7 +56,7 @@
 /* story */
 .landing-root .story { position: relative; background: var(--bg); }
 .landing-root .story.scrub { height: 650vh; }
-.landing-root .pin { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.landing-root .story .pin { position: sticky; top: 0; width: 100%; height: 100vh; height: 100svh; overflow: hidden; }
 .landing-root .story.static .pin { position: relative; }
 .landing-root .vid { position: absolute; inset: 0; width: 100%; height: 100%; background: #0d0e0f; overflow: hidden; }
 .landing-root .vid video,
@@ -141,11 +141,11 @@
 .landing-root .map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.5); }
 .landing-root .map .leaflet-control-zoom a { width: 40px; height: 40px; line-height: 40px; }
 .landing-root .map-hint { position: absolute; left: 50%; bottom: 18px; translate: -50% 0; z-index: 500; background: rgba(13,14,15,.92); border: 1px solid var(--line); padding: 8px 14px; font-size: .9rem; pointer-events: none; }
-.landing-root .pin { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 700 .8rem var(--body); border: 2px solid #0d0e0f; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
-.landing-root .pin.amb { background: #e9ece6; color: #111; }
-.landing-root .pin.amb.sel { background: var(--lime); color: #000; width: 34px; height: 34px; margin: -3px; box-shadow: 0 0 0 4px rgba(198,244,50,.3); }
-.landing-root .pin.inc { background: var(--red); color: #fff; }
-.landing-root .pin.base { background: var(--amber); color: #000; border-radius: 4px; }
+.landing-root .map .pin { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; font: 700 .8rem var(--body); border: 2px solid #0d0e0f; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
+.landing-root .map .pin.amb { background: #e9ece6; color: #111; }
+.landing-root .map .pin.amb.sel { background: var(--lime); color: #000; width: 34px; height: 34px; margin: -3px; box-shadow: 0 0 0 4px rgba(198,244,50,.3); }
+.landing-root .map .pin.inc { background: var(--red); color: #fff; }
+.landing-root .map .pin.base { background: var(--amber); color: #000; border-radius: 4px; }
 .landing-root .panel { padding: 22px; border-left: 1px solid var(--line); display: flex; flex-direction: column; gap: 16px; overflow: auto; max-height: 640px; }
 .landing-root .badge { font-size: .85rem; padding: 8px 10px; border: 1px solid; border-radius: 3px; }
 .landing-root .badge.demo { color: var(--amber); border-color: rgba(255,176,32,.5); }

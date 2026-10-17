@@ -6,33 +6,9 @@ import { Activity, Ambulance, ArrowUpRight, Clock3, Cpu, Crosshair, Gauge, GitBr
 import 'leaflet/dist/leaflet.css';
 import './styles.css';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
-
-const DEMO_NODES = [
-  [1,12.9560,77.6990],[2,12.9580,77.7020],[3,12.9600,77.7050],[4,12.9530,77.7030],
-  [5,12.9550,77.7070],[6,12.9580,77.7100],[7,12.9510,77.7080],[8,12.9530,77.7120],
-  [9,12.9560,77.7140],[10,12.9600,77.7140],[11,12.9620,77.7100],[12,12.9640,77.7050],
-  [13,12.9490,77.7040],[14,12.9480,77.7100],[15,12.9510,77.7160],[16,12.9630,77.7160]
-].map(([id,lat,lon]) => ({ id, lat, lon }));
-
-const PAIRS = [
-  [1,2,420,43.2],[2,3,460,55.2],[1,4,390,46.8],[4,5,430,61.92],[5,6,400,41.14],
-  [4,7,510,91.8],[7,8,450,64.8],[8,9,420,50.4],[9,10,500,51.43],[3,6,560,67.2],
-  [6,9,460,66.24],[3,12,520,53.49],[12,11,480,57.6],[11,10,510,61.2],[13,4,480,86.4],
-  [13,14,520,74.88],[14,8,540,64.8],[14,15,560,100.8],[15,9,490,58.8],[10,16,430,61.92],
-  [16,11,470,56.4],[2,4,390,93.6],[5,8,530,63.6]
-];
-const DEMO_EDGES = PAIRS.flatMap(([a,b,d,t],i) => [
-  { id: i*2+1, source: a, target: b, distanceM: d, timeS: t, roadType: 'local' },
-  { id: i*2+2, source: b, target: a, distanceM: d, timeS: t, roadType: 'local' }
-]);
-const DEMO_FLEET = [
-  { id: 'AMB-01', nodeId: 1, available: true },
-  { id: 'AMB-02', nodeId: 6, available: true },
-  { id: 'AMB-03', nodeId: 13, available: true },
-  { id: 'AMB-04', nodeId: 10, available: true },
-  { id: 'AMB-05', nodeId: 15, available: false }
-];
+const configuredApiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000/api';
+// Accept either http://host:4000 or http://host:4000/api, then use one canonical API root.
+const API = `${configuredApiBase.replace(/\/+$/, '').replace(/\/api$/, '')}/api`;
 
 const makeIcon = (symbol, cls) => L.divIcon({
   className: 'map-marker-wrap',
@@ -187,13 +163,9 @@ function TimingChart({ bench }) {
 }
 
 export default function DashboardApp({ onNavigateHome }) {
-  const [graph, setGraph] = useState({
-    nodes: DEMO_NODES,
-    edges: DEMO_EDGES,
-    datasetType: 'synthetic_demo_graph_not_real_road_data'
-  });
-  const [fleet, setFleet] = useState(DEMO_FLEET);
-  const [target, setTarget] = useState(9);
+  const [graph, setGraph] = useState({ nodes: [], edges: [], datasetType: 'unavailable' });
+  const [fleet, setFleet] = useState([]);
+  const [target, setTarget] = useState(null);
   const [threads, setThreads] = useState(4);
   const [mode, setMode] = useState('parallel');
   const [dispatch, setDispatch] = useState(null);
@@ -220,57 +192,54 @@ export default function DashboardApp({ onNavigateHome }) {
     ? best.routeCoordinates
     : (best?.path || []).map(id => nodesById.get(Number(id))).filter(Boolean).map(n => [n.lat, n.lon]);
 
-  const isRealGraph = /openstreetmap|\bosm\b/i.test(String(graph.datasetType || ''));
+  const isRealGraph = graph.datasetType === 'openstreetmap_derived';
 
-  // Load backend data on startup
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [gRes, fRes, hRes] = await Promise.all([
-          fetch(`${API}/graph`),
-          fetch(`${API}/ambulances`),
-          fetch(`${API}/health`)
-        ]);
-
-        if (!gRes.ok || !fRes.ok || !hRes.ok) throw new Error('API request failed');
-
-        const g = await gRes.json();
-        const f = await fRes.json();
-        const h = await hRes.json();
-
-        if (cancelled) return;
-
-        if (g.nodes?.length) {
-          setGraph({
-            ...g,
-            edges: (g.edges || []).map(e => ({
-              ...e,
-              source: Number(e.source),
-              target: Number(e.target)
-            }))
-          });
-          // Default target to middle node of loaded network
-          setTarget(g.nodes[Math.floor(g.nodes.length / 2)].id);
-        }
-
-        if (f.ambulances?.length) {
-          setFleet(f.ambulances);
-        }
-
-        setApiOnline(true);
-        setEngineReady(Boolean(h.engineBuilt));
-      } catch (err) {
-        if (!cancelled) {
-          setApiOnline(false);
-          setEngineReady(false);
-          setError('Backend API offline. Start the Node.js server to enable real-world routing & OpenMP dispatch.');
-        }
+  const loadBackend = useCallback(async (signal) => {
+    try {
+      const hRes = await fetch(`${API}/health`, { signal });
+      const h = await hRes.json().catch(() => null);
+      if (!hRes.ok || !h?.ok || !h.graphLoaded) {
+        throw new Error(h?.error || `Backend health check failed (${hRes.status}).`);
       }
-    })();
 
-    return () => { cancelled = true; };
+      const [gRes, fRes] = await Promise.all([
+        fetch(`${API}/graph`, { signal }),
+        fetch(`${API}/ambulances`, { signal })
+      ]);
+      const [g, f] = await Promise.all([gRes.json(), fRes.json()]);
+      if (!gRes.ok || !fRes.ok) throw new Error('Backend graph or fleet request failed.');
+      if (g.datasetType !== 'openstreetmap_derived' || g.nodes?.length !== h.nodeCount || g.edges?.length !== h.edgeCount) {
+        throw new Error('Backend did not return the expected OpenStreetMap road graph.');
+      }
+      if (!f.ambulances?.length) throw new Error('Backend returned no ambulance fleet.');
+
+      setGraph({
+        ...g,
+        edges: g.edges.map(e => ({ ...e, source: Number(e.source), target: Number(e.target) }))
+      });
+      setFleet(f.ambulances);
+      setTarget(g.nodes[Math.floor(g.nodes.length / 2)].id);
+      setApiOnline(true);
+      setEngineReady(Boolean(h.engineBuilt));
+      setError('');
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      setApiOnline(false);
+      setEngineReady(false);
+      setGraph({ nodes: [], edges: [], datasetType: 'unavailable' });
+      setFleet([]);
+      setTarget(null);
+      setDispatch(null);
+      setError(`Backend API offline at ${API}. Start the Node.js server on port 4000, then reload. ${err.message || ''}`.trim());
+    }
   }, []);
+
+  // The dashboard never treats the old 16-node sample graph as live routing data.
+  useEffect(() => {
+    const controller = new AbortController();
+    loadBackend(controller.signal);
+    return () => controller.abort();
+  }, [loadBackend]);
 
   const selectTarget = useCallback((id) => {
     setTarget(Number(id));
@@ -305,10 +274,11 @@ export default function DashboardApp({ onNavigateHome }) {
   async function runDispatch() {
     setBusy(true);
     setError('');
+    setDispatch(null);
     try {
-      if (!apiOnline || !engineReady) {
-        throw new Error('C++ engine is offline. Start the backend API and build the engine first.');
-      }
+      if (!target) throw new Error('Select an incident junction before dispatching.');
+      if (!apiOnline) throw new Error(`Backend API is unavailable at ${API}. Start the Node.js server on port 4000 and retry.`);
+      if (!engineReady) throw new Error('C++ engine is offline. Build the routing engine and retry.');
       const r = await fetch(`${API}/dispatch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -318,11 +288,18 @@ export default function DashboardApp({ onNavigateHome }) {
           mode
         })
       });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || 'Dispatch calculation failed.');
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error(data?.error || `Dispatch calculation failed (${r.status}).`);
+      if (!data?.best_ambulance || !Array.isArray(data.candidates)) {
+        throw new Error('Routing engine returned no recommended reachable ambulance.');
+      }
       setDispatch(data);
       setActiveSection('dispatch');
     } catch (e) {
+      if (e instanceof TypeError) {
+        setApiOnline(false);
+        setEngineReady(false);
+      }
       setError(e.message || 'Unable to calculate dispatch.');
     } finally {
       setBusy(false);
@@ -463,7 +440,7 @@ export default function DashboardApp({ onNavigateHome }) {
             </a>
             <div className={`pill ${engineReady ? 'pill-online' : 'pill-preview'}`}>
               <Radio size={14} />
-              {engineReady ? 'ENGINE CONNECTED' : 'BACKEND OFFLINE'}
+              {engineReady ? 'ENGINE CONNECTED' : apiOnline ? 'ENGINE UNAVAILABLE' : 'BACKEND OFFLINE'}
             </div>
             <div className="avatar">PM</div>
           </div>
@@ -494,13 +471,13 @@ export default function DashboardApp({ onNavigateHome }) {
             icon={Zap}
             label="ENGINE TIME"
             value={dispatch ? `${Number(dispatch.elapsed_ms).toFixed(3)} ms` : '—'}
-            sub={mode === 'parallel' ? `${threads} OpenMP threads` : 'Sequential baseline'}
+            sub={dispatch?.mode === 'parallel' ? `${dispatch.threads} OpenMP threads` : 'Sequential baseline'}
             accent="amber"
           />
         </section>
 
         {error && (
-          <div className="error-banner">
+          <div className="error-banner" role="alert">
             <Activity size={15} />
             <span>{error}</span>
             <button onClick={() => setError('')} aria-label="Dismiss message">×</button>
@@ -513,7 +490,7 @@ export default function DashboardApp({ onNavigateHome }) {
               <div>
                 <div className="section-kicker">GEOSPATIAL VIEW</div>
                 <h2>Road network & fleet</h2>
-                <p>{isRealGraph ? 'OpenStreetMap Marathahalli–Bellandur road graph' : 'Sample road graph'} · click map to place incident</p>
+                <p>{isRealGraph ? 'OpenStreetMap Marathahalli–Bellandur road graph' : 'Waiting for the real road graph'} · click map to place incident</p>
               </div>
               <div className="map-legend">
                 <span><i className="legend-amb" /> Available</span>
@@ -523,7 +500,7 @@ export default function DashboardApp({ onNavigateHome }) {
             </div>
 
             <div className="map-wrap">
-              <MapContainer center={mapCenter} zoom={14} scrollWheelZoom className="leaflet-map">
+              <MapContainer center={mapCenter} zoom={14} scrollWheelZoom preferCanvas className="leaflet-map">
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -605,7 +582,7 @@ export default function DashboardApp({ onNavigateHome }) {
 
               <div className="map-stamp">
                 <span className="live-dot" />
-                {isRealGraph ? 'BENGALURU OSM NETWORK' : 'SYNTHETIC NETWORK'}{' '}
+                {isRealGraph ? 'BENGALURU OSM NETWORK' : 'WAITING FOR API'}{' '}
                 <span>·</span> {graph.nodes.length} nodes / {graph.edges.length} edges
               </div>
               <div className="map-tools">
@@ -639,9 +616,11 @@ export default function DashboardApp({ onNavigateHome }) {
               <label className="field-label" htmlFor="incident-node">INCIDENT JUNCTION</label>
               <select
                 id="incident-node"
-                value={target}
+                value={target ?? ''}
                 onChange={e => selectTarget(e.target.value)}
+                disabled={!graph.nodes.length}
               >
+                {!graph.nodes.length && <option value="">Waiting for OpenStreetMap network…</option>}
                 {graph.nodes.slice(0, 300).map(n => (
                   <option key={n.id} value={n.id}>
                     Node {n.id} · {n.lat.toFixed(4)}, {n.lon.toFixed(4)}
@@ -702,8 +681,9 @@ export default function DashboardApp({ onNavigateHome }) {
               </div>
 
               <button
+                type="button"
                 className="primary-btn"
-                disabled={busy || !graph.nodes.length || !engineReady}
+                disabled={busy || !target || !available.length}
                 onClick={runDispatch}
               >
                 <Play size={15} fill="currentColor" />

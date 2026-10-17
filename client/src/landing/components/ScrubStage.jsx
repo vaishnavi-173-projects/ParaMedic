@@ -32,6 +32,8 @@ export default function ScrubStage() {
   const stepEls = useRef([]);
   const bar = useRef(null);
   const [videoError, setVideoError] = useState(false);
+  const [videoReady, setVideoReady] = useState(false);
+  const cue = useRef(null);
 
   // Scroll-scrubbed playback: one rAF loop, smooth seek synchronization
   useEffect(() => {
@@ -41,17 +43,6 @@ export default function ScrubStage() {
 
     v.muted = true;
     v.playsInline = true;
-
-    // Handle non-scrub mode (mobile or reduced motion)
-    if (!scrub) {
-      v.loop = true;
-      if (!reduce) {
-        v.play().catch(() => {});
-      }
-      return () => {
-        v.pause();
-      };
-    }
 
     let raf = 0;
     let visible = true;
@@ -66,23 +57,52 @@ export default function ScrubStage() {
       isPrimed = true;
       try {
         v.muted = true;
-        // Setting a tiny non-zero offset causes browsers to decode & present the first frame to the compositor
+        v.playsInline = true;
         v.currentTime = 0.001;
-      } catch (e) {
-        // Fallback for browsers requiring play() invocation to initiate decode
-        const playProm = v.play();
-        if (playProm !== undefined) {
-          playProm
-            .then(() => {
-              v.pause();
+      } catch (_) {}
+
+      // Modern browsers: play() then pause() on muted element reliably primes video decoder
+      const playProm = v.play();
+      if (playProm !== undefined) {
+        playProm
+          .then(() => {
+            v.pause();
+            v.currentTime = 0.001;
+            setVideoReady(true);
+          })
+          .catch(() => {
+            try {
               v.currentTime = 0.001;
-            })
-            .catch(() => {});
-        }
+            } catch (_) {}
+            setVideoReady(true);
+          });
+      } else {
+        setVideoReady(true);
       }
     };
 
+    // Handle non-scrub mode (mobile or reduced motion)
+    if (!scrub) {
+      v.loop = true;
+      if (!reduce) {
+        v.play()
+          .then(() => setVideoReady(true))
+          .catch(() => setVideoReady(true));
+      } else {
+        primeInitialFrame();
+      }
+      return () => {
+        v.pause();
+      };
+    }
+
     const onLoadedMetadata = () => {
+      if (v.readyState >= 2) {
+        primeInitialFrame();
+      }
+    };
+
+    const onLoadedData = () => {
       primeInitialFrame();
     };
 
@@ -92,6 +112,7 @@ export default function ScrubStage() {
 
     const onSeeked = () => {
       seeking = false;
+      setVideoReady(true);
     };
 
     const onError = () => {
@@ -99,13 +120,13 @@ export default function ScrubStage() {
     };
 
     v.addEventListener('loadedmetadata', onLoadedMetadata);
-    v.addEventListener('loadeddata', onCanPlay);
+    v.addEventListener('loadeddata', onLoadedData);
     v.addEventListener('canplay', onCanPlay);
     v.addEventListener('seeked', onSeeked);
     v.addEventListener('error', onError);
 
     // If metadata is already present in cache
-    if (v.readyState >= 1) {
+    if (v.readyState >= 2) {
       primeInitialFrame();
     }
 
@@ -164,6 +185,11 @@ export default function ScrubStage() {
       if (bar.current) {
         bar.current.style.transform = `scaleX(${p})`;
       }
+
+      // Update scroll cue visibility
+      if (cue.current) {
+        cue.current.style.opacity = p > 0.08 ? 0 : 1;
+      }
     };
 
     raf = requestAnimationFrame(tick);
@@ -172,7 +198,7 @@ export default function ScrubStage() {
       cancelAnimationFrame(raf);
       io.disconnect();
       v.removeEventListener('loadedmetadata', onLoadedMetadata);
-      v.removeEventListener('loadeddata', onCanPlay);
+      v.removeEventListener('loadeddata', onLoadedData);
       v.removeEventListener('canplay', onCanPlay);
       v.removeEventListener('seeked', onSeeked);
       v.removeEventListener('error', onError);
@@ -180,7 +206,7 @@ export default function ScrubStage() {
   }, [scrub, reduce]);
 
   const setCh = (k) => (n) => (chapters.current[k] = n);
-  const mobileSrc = narrow ? '/media/BG-scrub-mobile.mp4' : '/media/BG-scrub.mp4';
+  const heroVideoSrc = narrow ? '/media/BG-scrub-mobile.mp4' : '/media/BG.mp4';
 
   return (
     <section
@@ -198,19 +224,26 @@ export default function ScrubStage() {
             alt=""
             className="poster-img"
             aria-hidden="true"
+            style={{
+              opacity: videoReady && !videoError ? 0 : 1,
+              transition: 'opacity 400ms ease',
+            }}
           />
 
           <video
             ref={video}
-            key={mobileSrc}
-            src={mobileSrc}
+            key={heroVideoSrc}
+            src={heroVideoSrc}
             poster="/media/poster.jpg"
             muted
             playsInline
             preload={scrub ? 'auto' : 'metadata'}
             aria-hidden="true"
             tabIndex={-1}
-            style={{ opacity: videoError ? 0 : 1 }}
+            style={{
+              opacity: videoError ? 0 : (videoReady ? 1 : 0),
+              transition: 'opacity 400ms ease',
+            }}
           />
           <div className="shade" />
           <div className="vignette" />
@@ -220,6 +253,12 @@ export default function ScrubStage() {
           <div className="progress" aria-hidden="true">
             <i ref={bar} />
           </div>
+        )}
+
+        {scrub && (
+          <span ref={cue} className="scroll-cue" aria-hidden="true">
+            Scroll
+          </span>
         )}
 
         <div className="chapter hero" ref={setCh('hero')}>
@@ -236,9 +275,6 @@ export default function ScrubStage() {
               See how it works
             </button>
           </div>
-          <span className="scroll-cue" aria-hidden="true">
-            Scroll
-          </span>
         </div>
 
         <div className="chapter problem" ref={setCh('problem')}>
